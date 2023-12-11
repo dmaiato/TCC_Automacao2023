@@ -1,0 +1,7 @@
+{
+  "rede": "Wokwi-GUST",
+  "senha": "",
+  "broker": "demo.thingsboard.io",
+  "token": "ifrgautomacao_spa2023",
+  "topico": "v1/devices/me/attribute"
+}
