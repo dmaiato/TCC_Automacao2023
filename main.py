@@ -1,4 +1,5 @@
 from machine import Pin, I2C, ADC, PWM
+from umqtt.robust import MQTTClient
 from i2c_lcd import I2cLcd
 from rotary import Rotary
 from utime import ticks_ms, sleep_ms
@@ -18,15 +19,13 @@ selection = Rotary(5, 17, 16)
 cx, cy = 0, 0 # cursor
 
 stockDict = {"ganhos": [[0,0,0,0], [0,0,0,0], [0,0,0,0]],
-             "setpoint": [1,3,5], "voltar": False,
-						 "retry": True, "modo": "offline"}
+             "setpoint": [1,3,5], "voltar": False, "retry": True, "modo": "offline"}
 
-bufferDict = {"ganhos": [[0,0,0,0], [0,0,0,0], [0,0,0,0]],
-              "setpoint": [1,3,5], "voltar": False,
-							"retry": True, "modo": "offline"} # ganho, sp
+bufferDict = dict(stockDict)
 
-values = {"ganhos": {"kp": 0.0, 'ki': 0.0, 'kd': 0.0},
-		  "setpoint": 135}
+stockValues = {"ganhos": {"kp": 0.0, 'ki': 0.0, 'kd': 0.0}, "setpoint": 135}
+
+values = dict(stockValues)
 
 state = "none"
 
@@ -35,6 +34,14 @@ rele = Pin(4, Pin.OUT)
 rele.on()
 neopixA = NeoPixel(Pin(32),30)
 neopixB = NeoPixel(Pin(33),30)
+
+def callback(t, p):
+	topico = t.decode()
+	cmd = load(p.decode())
+
+	values["ganhos"].update(cmd, cmd)
+
+	print(values["ganhos"])
 
 def rotary_changed(change): # máquina de estados
 
@@ -148,10 +155,11 @@ def rotary_changed(change): # máquina de estados
 		buff = bufferDict['ganhos']
 
 		if change == Rotary.ROT_CW:
+			if cx == 4 and cy == 2: return
 			buff[cy][cx] = clamp(buff[cy][cx] + 1, 9)
-			print("oi")
 		
 		elif change == Rotary.ROT_CCW:
+			if cx == 4 and cy == 2: return
 			buff[cy][cx] = clamp(buff[cy][cx] - 1, 9)
 
 		elif change == Rotary.SW_PRESS:
@@ -186,6 +194,7 @@ def rotary_changed(change): # máquina de estados
 				lcd.move_to(12, 3)
 				lcd.overwrite(' ')
 				lcd.move_to(4, 1)
+				lcd.overwrite(str(buff[cy][cx]))
 			elif cy != 2 or cx != 4:
 				lcd.overwrite(str(buff[cy][cx]))
 			else: lcd.overwrite('~')
@@ -259,11 +268,7 @@ somaErro = 0
 print("________________________________________________")
 
 rotina = "offline"
-topico = cfg["topico"].encode()
-
-attr = {'kp': 0.0, 'kd': 0.0, 'ki': 0.0}
-
-# mqtt.publish(b'v1/devices/me/attributes', dumps(attr).encode())
+topAttr = b"v1/devices/me/attributes"
 
 delay = 0
 while True:
@@ -298,27 +303,32 @@ while True:
 		elif tela.name == "offline":
 			valores = values['ganhos']
 			if bufferDict['voltar']:
-				bufferDict = stockDict
+				for i, e in enumerate(bufferDict["ganhos"]):
+					bufferDict["ganhos"][i] = [0,0,0,0]
+				for i in list(values["ganhos"].keys()):
+					values["ganhos"][i] = 0.0
 				tela.modo_on_offline()
+				bufferDict["modo"] = "offline"
+				cx, cy = 0, 0
 				continue
 			valores['kp'] = float(''.join(str(i) for i in bufferDict['ganhos'][0])) / 100
 			valores['ki'] = float(''.join(str(i) for i in bufferDict['ganhos'][1])) / 100
 			valores['kd'] = float(''.join(str(i) for i in bufferDict['ganhos'][2])) / 100
 			print(valores['kp'], valores['ki'], valores['kd'])
 
-			rotina = "pid"
+			rotina = "inicializacao_pid"
 			tela.setpoint()
-
-		# elif tela.name == "setpoint":
-		# 	bufferDict["modo"] = "offline"
-		# 	print(values['ganhos'])
-		# 	rotina = "pid"
-		# 	tela.offline()
 
 	elif rotina == "iniciando_conexao":
 
 		try:
 			wifi = wifi_connect(cfg["rede"], cfg["senha"])
+			mqtt = MQTTClient(cfg['id'], cfg['broker'], user = cfg['token'], password = cfg['mqtt_pw'])
+			mqtt.set_callback(callback)
+			mqtt.connect()
+			print ('requests')
+			mqtt.subscribe(topAttr)
+			mqtt.publish(topAttr, dumps(values["ganhos"]).encode())
 		except:
 			rotina = "erro_conexao"
 			tela.erro_conexao()
@@ -347,6 +357,8 @@ while True:
 		cx, cy = 0, 0
 
 	elif rotina == "online":
+
+		mqtt.check_msg()
 		if not wifi.isconnected():
 			rotina = "iniciando_conexao"
 			tela.iniciando_conexao()
@@ -366,39 +378,39 @@ while True:
 		bufferDict["modo"] = "offline"
 		tela.modo_on_offline()
 
-	elif rotina == "pid":
+	elif rotina == "inicializacao_pid":
 
 		setpoint = int(values["setpoint"])
 		listaDeCores = [(0,255,0),
-										(0,255,0),
-										(50,255,0),
-										(50,255,0),
-										(100,255,0),
-										(100,255,0),
-										(140,255,0),
-										(140,255,0),
-										(180,255,0),
-										(180,255,0),
-										(225,255,0),
-										(225,255,0),
-										(255,255,0),
-										(255,255,0),
-										(255,225,0),
-										(255,225,0),
-										(255,200,0),
-										(255,200,0),
-										(255,150,0),
-										(255,150,0),
-										(255,110,0),
-										(255,110,0),
-										(255,75,0),
-										(255,75,0),
-										(255,40,0),
-										(255,40,0),
-										(255,15,0),
-										(255,15,0),
-										(255,0,0),
-										(255,0,0)]
+				(0,255,0),
+				(50,255,0),
+				(50,255,0),
+				(100,255,0),
+				(100,255,0),
+				(140,255,0),
+				(140,255,0),
+				(180,255,0),
+				(180,255,0),
+				(225,255,0),
+				(225,255,0),
+				(255,255,0),
+				(255,255,0),
+				(255,225,0),
+				(255,225,0),
+				(255,200,0),
+				(255,200,0),
+				(255,150,0),
+				(255,150,0),
+				(255,110,0),
+				(255,110,0),
+				(255,75,0),
+				(255,75,0),
+				(255,40,0),
+				(255,40,0),
+				(255,15,0),
+				(255,15,0),
+				(255,0,0),
+				(255,0,0)]
 
 		tempoAnterior = 0
 		erroAnterior = 0
@@ -425,64 +437,89 @@ while True:
 		deltaTempo = 0
 		somaErro = 0
 
+		rotina = "pid"
+
+	elif rotina == "pid":
+
+		if bufferDict["modo"] == "online":
+			mqtt.check_msg()
+			if not wifi.isconnected():
+				rotina = "iniciando_conexao"
+				tela.iniciando_conexao()
+				continue
+
+		setpoint = values["setpoint"]
+		tempo = ticks_ms() - tempoAnterior
+		angulo = map(pot.read_uv(), 1040949, 2138458, 0, 270)
+		erro = setpoint - angulo
+		
+		somaErro = (erro*deltaTempo) + somaErro
+		if somaErro > 75: somaErro = 75
+		elif somaErro < -75: somaErro = -75
+
+		deltaTempo = tempo - tempoAnterior
+		deltaErro = erro  - erroAnterior
+
 		ganhos = values["ganhos"]
 
-		while tela.name == "setpoint":
+		p = ganhos["kp"] * erro
+		i = ganhos["kp"] * ganhos["ki"] * somaErro
+		d = ganhos["kp"] * ganhos["kp"] * (deltaErro/deltaTempo)
 
-			setpoint = values["setpoint"]
-			
-			tempo = ticks_ms() - tempoAnterior
-
-			angulo = map(pot.read_uv(), 1040949, 2138458, 0, 270)
-
-			erro = setpoint - angulo
-			
-			somaErro = (erro*deltaTempo) + somaErro
-			if somaErro > 75: somaErro = 75
-			elif somaErro < -75: somaErro = -75
-	
-			deltaTempo = tempo - tempoAnterior
-			deltaErro = erro  - erroAnterior
-
-			p = ganhos["kp"] * erro
-			i = ganhos["kp"] * ganhos["ki"] * somaErro
-			d = ganhos["kp"] * ganhos["kp"] * (deltaErro/deltaTempo)
-
-			u = p + i + d
-			
-			motorA = map(u, 0, 270, pwmMenor, 1023)
-			if motorA > 1023: motorA = 1023
-			elif motorA < pwmMenorFoda: motorA = 0
-			
-			motorB = map(u, 270, 0, pwmMenor, 1023) - compensador
-			if motorB > 1023: motorB = 1023
-			elif motorB < pwmMenorFoda: motorB = 0
-			
-			in1.duty(motorA)
-			in2.duty(motorB)
-			in3.duty(motorA)
-			in4.duty(motorB)
+		u = p + i + d
 		
-			print(f'{angulo} {setpoint}')
-					
-			tempoAnterior = tempo
-			erroAnterior = erro
-			
-			tempoAnterior = ticks_ms()
+		motorA = map(u, 0, 270, pwmMenor, 1023)
+		if motorA > 1023: motorA = 1023
+		elif motorA < pwmMenorFoda: motorA = 0
+		
+		motorB = map(u, 270, 0, pwmMenor, 1023) - compensador
+		if motorB > 1023: motorB = 1023
+		elif motorB < pwmMenorFoda: motorB = 0
+		
+		in1.duty(motorA)
+		in2.duty(motorB)
+		in3.duty(motorA)
+		in4.duty(motorB)
+	
+		print(f'{angulo} {setpoint}')
+				
+		tempoAnterior = tempo
+		erroAnterior = erro
+		
+		tempoAnterior = ticks_ms()
 
-			if ticks_ms() < delay:
-				continue
-			if state != "countdown": 
-				continue
+		if ticks_ms() < delay:
+			continue
+		if state != "countdown": 
+			continue
 
-			state = "none"
-			delay = 0
+		state = "none"
+		delay = 0
 
-			if tela.name == "setpoint":
-				bufferDict["modo"] = "offline"
-				print(values['ganhos'])
-				rotina = "offline"
-				tela.offline()
+		if tela.name == "online":
+			wifi.disconnect()
+			bufferDict["setpoint"] = [1,3,5]
+			values["setpoint"] = 135
+			for i, e in enumerate(bufferDict["ganhos"]):
+				bufferDict["ganhos"][i] = [0,0,0,0]
+			for i in list(values["ganhos"].keys()):
+				values["ganhos"][i] = 0.0
+			print(values['ganhos'])
+			rotina = "modo_on_offline"
+			cx, cy = 0, 0
+			tela.modo_on_offline()
+
+		if tela.name == "setpoint":
+			bufferDict["setpoint"] = [1,3,5]
+			values["setpoint"] = 135
+			for i, e in enumerate(bufferDict["ganhos"]):
+				bufferDict["ganhos"][i] = [0,0,0,0]
+			for i in list(values["ganhos"].keys()):
+				values["ganhos"][i] = 0.0
+			print(values['ganhos'])
+			rotina = "offline"
+			cx, cy = 0, 0
+			tela.offline()
 
 	collect()
 		
