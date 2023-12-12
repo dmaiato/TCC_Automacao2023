@@ -15,7 +15,7 @@ from ujson import load, dumps
 with open("cfg.json", "r") as arq:
 	cfg = load(arq)
 
-selection = Rotary(5, 17, 16)
+selection = Rotary(15, 22, 21)
 cx, cy = 0, 0 # cursor
 
 stockDict = {"ganhos": [[0,0,0,0], [0,0,0,0], [0,0,0,0]],
@@ -37,6 +37,8 @@ rele.on()
 neopixA = NeoPixel(Pin(32),30)
 neopixB = NeoPixel(Pin(33),30)
 
+posAnterior = 10
+
 def callback(t, p):
 	topico = t.decode()
 	cmd = load(p.decode())
@@ -49,7 +51,7 @@ def rotary_changed(change): # máquina de estados
 
 	print(change)
 
-	global tela, state, block, lcd, values, cx, cy
+	global tela, state, block, lcd, values, cx, cy, posAnterior
 
 	print(bufferDict["voltar"])
 
@@ -65,15 +67,16 @@ def rotary_changed(change): # máquina de estados
 		elif change == Rotary.ROT_CCW:
 			buff[cx] -= 1
 
-		elif change == Rotary.SW_RELEASE:
+		elif change == Rotary.SW_PRESS:
 			state = "init"
 			return
 
-		elif change == Rotary.SW_PRESS:
+		elif change == Rotary.SW_RELEASE:
 			state = "none"
 			if tela.block: return
 			cx = (cx +1) % len(cursor_tuples)
 			lcd.move_to(cursor_tuples[cx], 0)
+			posAnterior = cursor_tuples[cx]
 			return
 
 		if cx == 0:
@@ -124,10 +127,10 @@ def rotary_changed(change): # máquina de estados
 
 		cy = 2
 
-		if change == Rotary.SW_RELEASE:
+		if change == Rotary.SW_PRESS:
 			state = "init"
 
-		elif change == Rotary.SW_PRESS:
+		elif change == Rotary.SW_RELEASE:
 			state = "none"
 			cx += 1
 
@@ -144,10 +147,10 @@ def rotary_changed(change): # máquina de estados
 	
 	elif tela.name == "online":
 
-		if change == Rotary.SW_RELEASE:
+		if change == Rotary.SW_PRESS:
 			state = "init"
 
-		elif change == Rotary.SW_PRESS:
+		elif change == Rotary.SW_RELEASE:
 			state = "none"
   
 	elif tela.name == "offline":
@@ -164,7 +167,7 @@ def rotary_changed(change): # máquina de estados
 			if cx == 4 and cy == 2: return
 			buff[cy][cx] = clamp(buff[cy][cx] - 1, 9)
 
-		elif change == Rotary.SW_RELEASE:
+		elif change == Rotary.SW_PRESS:
 			state = "init"
 
 			if cx == 4:
@@ -172,7 +175,7 @@ def rotary_changed(change): # máquina de estados
 
 			return
 
-		elif change == Rotary.SW_PRESS:
+		elif change == Rotary.SW_RELEASE:
 			state = "none"
 			if tela.block: return
 			cx += 1
@@ -207,11 +210,11 @@ def rotary_changed(change): # máquina de estados
 
 		cy = 2
 
-		if change == Rotary.SW_RELEASE:
+		if change == Rotary.SW_PRESS:
 			state = "init"
 			return
 
-		elif change == Rotary.SW_PRESS:
+		elif change == Rotary.SW_RELEASE:
 			state = "none"
 			cx += 1
 
@@ -271,9 +274,33 @@ print("________________________________________________")
 
 rotina = "offline"
 topAttr = b"v1/devices/me/attributes"
-
 delay = 0
-while True:
+
+# Checagem de tensão
+
+shutdown = False
+divisor = ADC(Pin(2))
+divisor.atten(ADC.ATTN_11DB)
+rele = Pin(4, Pin.OUT)
+tensao = 0
+for i in range(20):
+	tensao += divisor.read()
+media = tensao/20
+media = 1600
+if media < 1550:
+	shutdown = True
+	tela.tensao_baixa()
+elif media > 1700:
+	shutdown = True
+	tela.tensao_alta()
+else:
+	rele.on()
+
+t_angulo = 0
+t_erro = 0
+delayDisplay = 0
+
+while not shutdown:
 
 	if state == "init":
 			delay = ticks_ms() + 3000
@@ -439,6 +466,8 @@ while True:
 		deltaTempo = 0
 		somaErro = 0
 
+		delayDisplay = ticks_ms() + 750
+
 		rotina = "pid"
 
 	elif rotina == "pid":
@@ -490,6 +519,27 @@ while True:
 		
 		tempoAnterior = ticks_ms()
 
+		if ticks_ms() >= delayDisplay:
+			tela.block = True
+			lcd.hide_cursor()
+			t_angulo = (t_angulo + 10) % 110
+			t_erro = (t_erro + 10) % 110
+
+			lcd.move_to(8, 2)
+			lcd.putstr("   ")
+			lcd.move_to(8, 2)
+			lcd.putstr(f"{t_angulo}")
+			print(t_angulo)
+			lcd.move_to(8, 3)
+			lcd.putstr("   ")
+			lcd.move_to(8, 3)
+			lcd.putstr(f"{t_erro}")
+
+			lcd.move_to(posAnterior, 0)
+			delayDisplay = ticks_ms() + 750
+			tela.block = False
+			lcd.show_cursor()
+
 		if ticks_ms() < delay:
 			continue
 		if state != "countdown": 
@@ -499,6 +549,10 @@ while True:
 		delay = 0
 
 		if tela.name == "online":
+			in1.duty(0)
+			in2.duty(0)
+			in3.duty(0)
+			in4.duty(0)
 			wifi.disconnect()
 			bufferDict["setpoint"] = [1,3,5]
 			values["setpoint"] = 135
@@ -512,6 +566,10 @@ while True:
 			tela.modo_on_offline()
 
 		if tela.name == "setpoint":
+			in1.duty(0)
+			in2.duty(0)
+			in3.duty(0)
+			in4.duty(0)
 			bufferDict["setpoint"] = [1,3,5]
 			values["setpoint"] = 135
 			for i, e in enumerate(bufferDict["ganhos"]):
