@@ -19,11 +19,13 @@ selection = Rotary(5, 17, 16)
 cx, cy = 0, 0 # cursor
 
 stockDict = {"ganhos": [[0,0,0,0], [0,0,0,0], [0,0,0,0]],
-             "setpoint": [1,3,5], "voltar": False, "retry": True, "modo": "offline"}
+             "setpoint": [1,3,5], "voltar": False,
+						 "retry": True, "modo": "offline"}
 
 bufferDict = dict(stockDict)
 
-stockValues = {"ganhos": {"kp": 0.0, 'ki': 0.0, 'kd': 0.0}, "setpoint": 135}
+stockValues = {"ganhos": {"kp": 0.0, 'ki': 0.0, 'kd': 0.0},
+		  	   "setpoint": 135}
 
 values = dict(stockValues)
 
@@ -63,11 +65,11 @@ def rotary_changed(change): # máquina de estados
 		elif change == Rotary.ROT_CCW:
 			buff[cx] -= 1
 
-		elif change == Rotary.SW_PRESS:
+		elif change == Rotary.SW_RELEASE:
 			state = "init"
 			return
 
-		elif change == Rotary.SW_RELEASE:
+		elif change == Rotary.SW_PRESS:
 			state = "none"
 			if tela.block: return
 			cx = (cx +1) % len(cursor_tuples)
@@ -122,10 +124,10 @@ def rotary_changed(change): # máquina de estados
 
 		cy = 2
 
-		if change == Rotary.SW_PRESS:
+		if change == Rotary.SW_RELEASE:
 			state = "init"
 
-		elif change == Rotary.SW_RELEASE:
+		elif change == Rotary.SW_PRESS:
 			state = "none"
 			cx += 1
 
@@ -142,10 +144,10 @@ def rotary_changed(change): # máquina de estados
 	
 	elif tela.name == "online":
 
-		if change == Rotary.SW_PRESS:
+		if change == Rotary.SW_RELEASE:
 			state = "init"
 
-		elif change == Rotary.SW_RELEASE:
+		elif change == Rotary.SW_PRESS:
 			state = "none"
   
 	elif tela.name == "offline":
@@ -162,7 +164,7 @@ def rotary_changed(change): # máquina de estados
 			if cx == 4 and cy == 2: return
 			buff[cy][cx] = clamp(buff[cy][cx] - 1, 9)
 
-		elif change == Rotary.SW_PRESS:
+		elif change == Rotary.SW_RELEASE:
 			state = "init"
 
 			if cx == 4:
@@ -170,7 +172,7 @@ def rotary_changed(change): # máquina de estados
 
 			return
 
-		elif change == Rotary.SW_RELEASE:
+		elif change == Rotary.SW_PRESS:
 			state = "none"
 			if tela.block: return
 			cx += 1
@@ -205,11 +207,11 @@ def rotary_changed(change): # máquina de estados
 
 		cy = 2
 
-		if change == Rotary.SW_PRESS:
+		if change == Rotary.SW_RELEASE:
 			state = "init"
 			return
 
-		elif change == Rotary.SW_RELEASE:
+		elif change == Rotary.SW_PRESS:
 			state = "none"
 			cx += 1
 
@@ -382,35 +384,35 @@ while True:
 
 		setpoint = int(values["setpoint"])
 		listaDeCores = [(0,255,0),
-				(0,255,0),
-				(50,255,0),
-				(50,255,0),
-				(100,255,0),
-				(100,255,0),
-				(140,255,0),
-				(140,255,0),
-				(180,255,0),
-				(180,255,0),
-				(225,255,0),
-				(225,255,0),
-				(255,255,0),
-				(255,255,0),
-				(255,225,0),
-				(255,225,0),
-				(255,200,0),
-				(255,200,0),
-				(255,150,0),
-				(255,150,0),
-				(255,110,0),
-				(255,110,0),
-				(255,75,0),
-				(255,75,0),
-				(255,40,0),
-				(255,40,0),
-				(255,15,0),
-				(255,15,0),
-				(255,0,0),
-				(255,0,0)]
+										(0,255,0),
+										(50,255,0),
+										(50,255,0),
+										(100,255,0),
+										(100,255,0),
+										(140,255,0),
+										(140,255,0),
+										(180,255,0),
+										(180,255,0),
+										(225,255,0),
+										(225,255,0),
+										(255,255,0),
+										(255,255,0),
+										(255,225,0),
+										(255,225,0),
+										(255,200,0),
+										(255,200,0),
+										(255,150,0),
+										(255,150,0),
+										(255,110,0),
+										(255,110,0),
+										(255,75,0),
+										(255,75,0),
+										(255,40,0),
+										(255,40,0),
+										(255,15,0),
+										(255,15,0),
+										(255,0,0),
+										(255,0,0)]
 
 		tempoAnterior = 0
 		erroAnterior = 0
