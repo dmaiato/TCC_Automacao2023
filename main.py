@@ -6,9 +6,8 @@ from utime import ticks_ms, sleep_ms
 from gc import collect
 from neopixel import NeoPixel
 from screens import Lcd_Screens
-from funcs import wifi_connect, clamp, map
+from funcs import wifi_connect, clamp, map, sensor_corrente
 from ujson import load, dumps
-from inaLib import sensor_corrente
 from ina219 import INA219
 
 #############################################################################
@@ -57,11 +56,8 @@ def callback(t, p):
 
 
 def rotary_changed(change):  # máquina de estados
-    print(change)
 
     global tela, state, block, lcd, values, cx, cy, posAnterior
-
-    print(bufferDict["voltar"])
 
     if tela.name == "setpoint":
         cursor_tuples = (10, 11, 12)
@@ -130,7 +126,6 @@ def rotary_changed(change):  # máquina de estados
         bufferDict["setpoint"] = buff
 
         values[tela.name] = int("".join((str(i) for i in bufferDict[tela.name])))
-        print(values[tela.name])
 
         if tela.block == False:
             lcd.overwrite(str(buff[cx]))
@@ -254,7 +249,6 @@ def rotary_changed(change):  # máquina de estados
             lcd.overwrite("~")
 
     collect()
-    print(state)
 
 
 selection.add_handler(rotary_changed)  # passa o callback para o objeto do encoder
@@ -291,8 +285,6 @@ somaErro = 0
 
 #############################################################################
 # loop principal e máquina de estados
-
-print("________________________________________________")
 
 rotina = "offline"
 topAttr = b"v1/devices/me/attributes"
@@ -369,7 +361,6 @@ while not shutdown:
             valores["kd"] = (
                 float("".join(str(i) for i in bufferDict["ganhos"][2])) / 100
             )
-            print(valores["kp"], valores["ki"], valores["kd"])
 
             rotina = "inicializacao_pid"
             tela.setpoint()
@@ -382,7 +373,6 @@ while not shutdown:
             )
             mqtt.set_callback(callback)
             mqtt.connect()
-            print("requests")
             mqtt.subscribe(topAttr)
             mqtt.publish(topAttr, dumps(values["ganhos"]).encode())
         except:
@@ -640,7 +630,6 @@ while not shutdown:
                 bufferDict["ganhos"][i] = [0, 0, 0, 0]
             for i in list(values["ganhos"].keys()):
                 values["ganhos"][i] = 0.0
-            print(values["ganhos"])
             rotina = "modo_on_offline"
             cx, cy = 0, 0
             tela.modo_on_offline()
@@ -661,7 +650,6 @@ while not shutdown:
                 bufferDict["ganhos"][i] = [0, 0, 0, 0]
             for i in list(values["ganhos"].keys()):
                 values["ganhos"][i] = 0.0
-            print(values["ganhos"])
             rotina = "offline"
             cx, cy = 0, 0
             tela.offline()
